@@ -2,3 +2,5 @@ auth.py
 history.csv
 refresh_token.json
 token.json
+.python-version
+.cache-simonb.0
