@@ -37,7 +37,7 @@ def refresh_token():
         with open('token.json', 'w') as write_token:
             write_token.write(response.text)
 
-        print('token refreshed!')
+        print('Token Refreshed')
 
 
 def authorize_token():
@@ -73,7 +73,7 @@ def authorize_token():
         print(refresh)
         with open('refresh_token.json', 'w') as write_refresh:
             json.dump(refresh, write_refresh)
-    print('auth successfull!')
+    print('Authorize Token successfull')
 
 
 # TODO: replace with datetime parsing
@@ -98,76 +98,72 @@ def current_playing(token):
         pass
     if r:
         if r.status_code == 200:
-            # try:
-            #     artist_json = r.json()['item']['artists']
-            #     artist_array = [artist['name'] for artist in artist_json]
-            #     artists = ' '.join(artist_array)
-            #     name = r.json()['item']['name']
-            #     time = pretty_print_ms(r.json()['progress_ms'])
-            #     playing = r.json()['is_playing']
-            #     pretty_playing = ''
-            #     if playing:
-            #         pretty_playing = '▶'
-            #     else:
-            #         pretty_playing = '❚❚'
-            #     length = r.json()['item']['duration_ms']
-            #     progress = r.json()['progress_ms']
-            #     perc = str(progress / length * 100)[0:4]
-            #     t = datetime.now()
-            #     time_print = t.strftime('%m/%d/%Y %H:%M:%S')
-            #     print('{} --- {} [{} /// {}] - {} - {}'.format(time_print,
-            #                                                    pretty_playing,
-            #                                                    time,
-            #                                                    perc + '%',
-            #                                                    name,
-            #                                                    artists))
-            # except Exception:
-            #     print('error printing, but 200 response')
             return r.json()
         elif r.status_code == 401:  # need to refresh
-            print(r.text)
+            print('[401] - Refreshing token')
             refresh_token()
             return None
         elif r.status_code == 204:
-            print('No track playing or private session')
+            print('[204] - No track playing or private session')
             return None
         else:
-            print('Error in call: {}'.format(r.status_code))
+            print('[{}] - Error'.format(r.status_code))
             print(r.text)
             return None
     else:
-        print('request failed')
+        print('Network connection error')
         refresh_token()
-        time.sleep(30)
+        time.sleep(10)
+
+
+def dict_get(d, path):
+    """Return attribute in dict given a path."""
+    for item in path:
+        # print('-------------------------------------')
+        # print('trying to get {} from {}'.format(item, d))
+        # print('-------------------------------------')
+        d = d.get(item, {})
+        # print('got {}'.format(d))
+        # print('-------------------------------------')
+        if d is None or d == {}:
+            print('{} ::: {} is considered None'.format(path, d))
+            return None
+    # print('returning d, which is {}'.format(d))
+    return d
 
 
 def parse_json(info):
     """Given json from Spotify, convert into array for appending to CSV."""
-    new_info = [
-            info['device'].get('name'),
-            info['device'].get('type'),
-            info['device'].get('volume_percent'),
-            info.get('shuffle_state'),
-            info.get('repeat_state'),
-            info.get('timestamp'),
-            info['context'].get('href'),
-            info['context'].get('type'),
-            info.get('progress_ms'),
-            info['item']['album'].get('href'),
-            info['item']['album'].get('name'),
-            info['item']['album'].get('release_date'),
-            info['item'].get('artists'),
-            info['item'].get('duration_ms'),
-            info['item'].get('explicit'),
-            info['item'].get('href'),
-            info['item'].get('name'),
-            info['item'].get('popularity'),
-            info['item'].get('track_number'),
-            info['item'].get('type'),
-            info.get('currently_playing_type'),
-            info.get('is_playing')
-            ]
-    return new_info
+    if info:
+        print(info)
+        return {
+                'device_name': dict_get(info, ['device', 'name']),
+                'device_type': dict_get(info, ['device', 'type']),
+                'device_volume': dict_get(info, ['device', 'volume_percent']),
+                'shuffle_state': dict_get(info, ['shuffle_state']),
+                'repeat_state': dict_get(info, ['repeat_state']),
+                'timestamp': dict_get(info, ['timestamp']),
+                'context_href': dict_get(info, ['context', 'href']),
+                'context_type': dict_get(info, ['context', 'type']),
+                'progress_ms': dict_get(info, ['progress_ms']),
+                'album_href': dict_get(info, ['item', 'album', 'href']),
+                'album_name': dict_get(info, ['item', 'album', 'name']),
+                'album_release': (dict_get(info,
+                                           ['item', 'album', 'release_date'])),
+                'artists': dict_get(info, ['item', 'artists']),
+                'duration_ms': dict_get(info, ['item', 'duration_ms']),
+                'explicit': dict_get(info, ['item', 'explicit']),
+                'href': dict_get(info, ['item', 'href']),
+                'name': dict_get(info, ['item', 'name']),
+                'popularity': dict_get(info, ['item', 'popularity']),
+                'track_number': dict_get(info, ['item', 'track_number']),
+                'type': dict_get(info, ['item', 'type']),
+                'current_playing_type': (dict_get(info,
+                                                  ['currently_playing_type'])),
+                'playing': dict_get(info, ['is_playing'])
+                }
+    else:
+        return None
 
 
 def main():
@@ -179,14 +175,43 @@ def main():
             tok = json.load(json_file)
         token = tok['access_token']
 
+        if not(os.path.isfile(os.getcwd() + '/history.csv')):
+            with open('history.csv', 'w') as f:
+                writer = csv.writer(f)
+                header = ['device_name',
+                          'device_type',
+                          'device_volume',
+                          'shuffle_state',
+                          'repeat_state',
+                          'timestamp',
+                          'context_href',
+                          'context_type',
+                          'progress_ms',
+                          'album_href',
+                          'album_name',
+                          'album_release',
+                          'artists',
+                          'duration_ms',
+                          'explicit',
+                          'href',
+                          'name',
+                          'popularity',
+                          'track_number',
+                          'type',
+                          'current_playing_type',
+                          'playing']
+                writer.writerow(header)
+
         info = current_playing(token)
 
         if info:
             to_append = parse_json(info)
-            print('{} - success! '.format(datetime.now()))
+            print(to_append)
+            print('{} - {}'.format(datetime.now(), to_append['name']))
             with open('history.csv', 'a') as f:
                 writer = csv.writer(f)
-                writer.writerow(to_append)
+                attributes = list(to_append.values())
+                writer.writerow(attributes)
         time.sleep(5)
 
 
