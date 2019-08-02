@@ -119,16 +119,10 @@ def current_playing(token):
 def dict_get(d, path):
     """Return attribute in dict given a path."""
     for item in path:
-        # print('-------------------------------------')
-        # print('trying to get {} from {}'.format(item, d))
-        # print('-------------------------------------')
         d = d.get(item, {})
-        # print('got {}'.format(d))
-        # print('-------------------------------------')
         if d is None or d == {}:
             print('{} ::: {} is considered None'.format(path, d))
             return None
-    # print('returning d, which is {}'.format(d))
     return d
 
 
@@ -166,8 +160,7 @@ def parse_json(info):
         return None
 
 
-def main():
-    """Refresh tokens and poll Spotify API."""
+if __name__ == '__main__':
     authorize_token()
 
     while True:
@@ -213,6 +206,3 @@ def main():
                 attributes = list(to_append.values())
                 writer.writerow(attributes)
         time.sleep(5)
-
-
-main()

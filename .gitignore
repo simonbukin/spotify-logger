@@ -1,6 +1,8 @@
 auth.py
 history.csv
+history_old.csv
 refresh_token.json
 token.json
 .python-version
 .cache-simonb.0
+.~lock.history.csv#
