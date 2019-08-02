@@ -76,6 +76,7 @@ def authorize_token():
     print('auth successfull!')
 
 
+# TODO: replace with datetime parsing
 def pretty_print_ms(ms):
     """Print milliseconds in a human-readable way."""
     s = str(int((ms / 1000) % 60))
@@ -97,31 +98,31 @@ def current_playing(token):
         pass
     if r:
         if r.status_code == 200:
-            try:
-                artist_json = r.json()['item']['artists']
-                artist_array = [artist['name'] for artist in artist_json]
-                artists = ' '.join(artist_array)
-                name = r.json()['item']['name']
-                time = pretty_print_ms(r.json()['progress_ms'])
-                playing = r.json()['is_playing']
-                pretty_playing = ''
-                if playing:
-                    pretty_playing = '▶'
-                else:
-                    pretty_playing = '❚❚'
-                length = r.json()['item']['duration_ms']
-                progress = r.json()['progress_ms']
-                perc = str(progress / length * 100)[0:4]
-                t = datetime.now()
-                time_print = t.strftime('%m/%d/%Y %H:%M:%S')
-                print('{} --- {} [{} /// {}] - {} - {}'.format(time_print,
-                                                               pretty_playing,
-                                                               time,
-                                                               perc + '%',
-                                                               name,
-                                                               artists))
-            except Exception:
-                print('error printing, but 200 response')
+            # try:
+            #     artist_json = r.json()['item']['artists']
+            #     artist_array = [artist['name'] for artist in artist_json]
+            #     artists = ' '.join(artist_array)
+            #     name = r.json()['item']['name']
+            #     time = pretty_print_ms(r.json()['progress_ms'])
+            #     playing = r.json()['is_playing']
+            #     pretty_playing = ''
+            #     if playing:
+            #         pretty_playing = '▶'
+            #     else:
+            #         pretty_playing = '❚❚'
+            #     length = r.json()['item']['duration_ms']
+            #     progress = r.json()['progress_ms']
+            #     perc = str(progress / length * 100)[0:4]
+            #     t = datetime.now()
+            #     time_print = t.strftime('%m/%d/%Y %H:%M:%S')
+            #     print('{} --- {} [{} /// {}] - {} - {}'.format(time_print,
+            #                                                    pretty_playing,
+            #                                                    time,
+            #                                                    perc + '%',
+            #                                                    name,
+            #                                                    artists))
+            # except Exception:
+            #     print('error printing, but 200 response')
             return r.json()
         elif r.status_code == 401:  # need to refresh
             print(r.text)
@@ -140,6 +141,35 @@ def current_playing(token):
         time.sleep(30)
 
 
+def parse_json(info):
+    """Given json from Spotify, convert into array for appending to CSV."""
+    new_info = [
+            info['device'].get('name'),
+            info['device'].get('type'),
+            info['device'].get('volume_percent'),
+            info.get('shuffle_state'),
+            info.get('repeat_state'),
+            info.get('timestamp'),
+            info['context'].get('href'),
+            info['context'].get('type'),
+            info.get('progress_ms'),
+            info['item']['album'].get('href'),
+            info['item']['album'].get('name'),
+            info['item']['album'].get('release_date'),
+            info['item'].get('artists'),
+            info['item'].get('duration_ms'),
+            info['item'].get('explicit'),
+            info['item'].get('href'),
+            info['item'].get('name'),
+            info['item'].get('popularity'),
+            info['item'].get('track_number'),
+            info['item'].get('type'),
+            info.get('currently_playing_type'),
+            info.get('is_playing')
+            ]
+    return new_info
+
+
 def main():
     """Refresh tokens and poll Spotify API."""
     authorize_token()
@@ -152,38 +182,11 @@ def main():
         info = current_playing(token)
 
         if info:
-            try:
-                to_append = [
-                    info['device']['name'],
-                    info['device']['type'],
-                    info['device']['volume_percent'],
-                    info['shuffle_state'],
-                    info['repeat_state'],
-                    info['timestamp'],
-                    info['context']['href'],
-                    info['context']['type'],
-                    info['progress_ms'],
-                    info['item']['album']['href'],
-                    info['item']['album']['name'],
-                    info['item']['album']['release_date'],
-                    info['item']['artists'],
-                    info['item']['duration_ms'],
-                    info['item']['explicit'],
-                    info['item']['href'],
-                    info['item']['name'],
-                    info['item']['popularity'],
-                    info['item']['track_number'],
-                    info['item']['type'],
-                    info['currently_playing_type'],
-                    info['is_playing']
-                ]
-                with open('history.csv', 'a') as f:
-                    writer = csv.writer(f)
-                    writer.writerow(to_append)
-            except TypeError:
-                print('TypeError within non Nonetype info')
-                pass
-
+            to_append = parse_json(info)
+            print('{} - success! '.format(datetime.now()))
+            with open('history.csv', 'a') as f:
+                writer = csv.writer(f)
+                writer.writerow(to_append)
         time.sleep(5)
 
 
