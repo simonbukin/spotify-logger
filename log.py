@@ -119,8 +119,8 @@ def current_playing(token):
 def dict_get(d, path):
     """Return attribute in dict given a path."""
     for item in path:
-        d = d.get(item, {})
-        if d is None or d == {}:
+        d = d.get(item)
+        if d is None:
             print('{} ::: {} is considered None'.format(path, d))
             return None
     return d
@@ -129,7 +129,7 @@ def dict_get(d, path):
 def parse_json(info):
     """Given json from Spotify, convert into array for appending to CSV."""
     if info:
-        print(info)
+        # print(info)
         return {
                 'device_name': dict_get(info, ['device', 'name']),
                 'device_type': dict_get(info, ['device', 'type']),
