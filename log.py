@@ -1,6 +1,4 @@
 from datetime import datetime
-
-import requests
 import webbrowser
 import urllib
 import json
@@ -9,7 +7,10 @@ import os.path
 import csv
 import time
 
-from auth import client_secret, client_id, redirect_uri
+import requests
+import redis
+
+from auth import client_secret, client_id, redirect_uri, redis_host, redis_port
 
 auth_url = 'https://accounts.spotify.com/authorize/?'
 token_url = 'https://accounts.spotify.com/api/token/?'
@@ -87,7 +88,16 @@ def pretty_print_ms(ms):
 
 
 def current_playing(token):
-    """Return and print the currently playing track."""
+    """Return and print the currently playing track.
+    Parameters
+    ----------
+    token: string
+        Authorization token to send a request.
+    Returns
+    -------
+    r: json or None
+        Returns JSON from GET request or None if error
+    """
     playback_url = 'https://api.spotify.com/v1/me/player'
     headers = {'Authorization': 'Bearer {}'.format(token)}
     r = None
@@ -117,7 +127,18 @@ def current_playing(token):
 
 
 def dict_get(d, path):
-    """Return attribute in dict given a path."""
+    """Return attribute in dict given a path.
+    Parameters
+    ----------
+    d: dict
+        dict to be traversed.
+    path: list
+        list of keys to traverese in the dict.
+    Returns
+    -------
+    d: value or None
+        value in key/value pair if found or None if not found.
+    """
     for item in path:
         d = d.get(item)
         if d is None:
@@ -127,9 +148,17 @@ def dict_get(d, path):
 
 
 def parse_json(info):
-    """Given json from Spotify, convert into array for appending to CSV."""
+    """Given json from Spotify, convert into dict.
+    Parameters
+    ----------
+    info: JSON dict
+        JSON dict to be filtered.
+    Returns
+    -------
+    d: dict or None
+        Return filtered dict or None if info is None.
+    """
     if info:
-        # print(info)
         return {
                 'device_name': dict_get(info, ['device', 'name']),
                 'device_type': dict_get(info, ['device', 'type']),
@@ -137,72 +166,53 @@ def parse_json(info):
                 'shuffle_state': dict_get(info, ['shuffle_state']),
                 'repeat_state': dict_get(info, ['repeat_state']),
                 'timestamp': dict_get(info, ['timestamp']),
-                'context_href': dict_get(info, ['context', 'href']),
-                'context_type': dict_get(info, ['context', 'type']),
+                'id': dict_get(info, ['item', 'id']),
                 'progress_ms': dict_get(info, ['progress_ms']),
-                'album_href': dict_get(info, ['item', 'album', 'href']),
-                'album_name': dict_get(info, ['item', 'album', 'name']),
-                'album_release': (dict_get(info,
-                                           ['item', 'album', 'release_date'])),
-                'artists': dict_get(info, ['item', 'artists']),
                 'duration_ms': dict_get(info, ['item', 'duration_ms']),
                 'explicit': dict_get(info, ['item', 'explicit']),
-                'href': dict_get(info, ['item', 'href']),
-                'name': dict_get(info, ['item', 'name']),
-                'popularity': dict_get(info, ['item', 'popularity']),
-                'track_number': dict_get(info, ['item', 'track_number']),
                 'type': dict_get(info, ['item', 'type']),
-                'current_playing_type': (dict_get(info,
-                                                  ['currently_playing_type'])),
                 'playing': dict_get(info, ['is_playing'])
                 }
     else:
         return None
 
 
+def redis_convert(d):
+    """Convert dict into Redis friendly types.
+    Parameters
+    ----------
+    d: dict
+        d is the dictionary containing values that may not be Redis friendly.
+    Returns
+    -------
+    d: dict
+        d is a converted dict containg Redis friendly values.
+    """
+    for key, val in d.items():
+        if isinstance(val, bool):
+            d[key] = 1 if val else 0
+    return d
+
+
 if __name__ == '__main__':
     authorize_token()
+
+    r = redis.StrictRedis(redis_host, db=0)
 
     while True:
         with open('token.json', 'r') as json_file:
             tok = json.load(json_file)
         token = tok['access_token']
 
-        if not(os.path.isfile(os.getcwd() + '/history.csv')):
-            with open('history.csv', 'w') as f:
-                writer = csv.writer(f)
-                header = ['device_name',
-                          'device_type',
-                          'device_volume',
-                          'shuffle_state',
-                          'repeat_state',
-                          'timestamp',
-                          'context_href',
-                          'context_type',
-                          'progress_ms',
-                          'album_href',
-                          'album_name',
-                          'album_release',
-                          'artists',
-                          'duration_ms',
-                          'explicit',
-                          'href',
-                          'name',
-                          'popularity',
-                          'track_number',
-                          'type',
-                          'current_playing_type',
-                          'playing']
-                writer.writerow(header)
-
         info = current_playing(token)
 
         if info:
-            to_append = parse_json(info)
-            print(to_append)
-            print('{} - {}'.format(datetime.now(), to_append['name']))
-            with open('history.csv', 'a') as f:
-                writer = csv.writer(f)
-                attributes = list(to_append.values())
-                writer.writerow(attributes)
+            master = parse_json(info)
+            master = redis_convert(master)
+            try:
+                utc_time = int(time.time())
+                r.hmset('activity:' + str(utc_time), master)
+                print('{} --- {}'.format(datetime.now(), master['id']))
+            except Exception as e:
+                print('Error: {}'.format(e))
         time.sleep(5)
